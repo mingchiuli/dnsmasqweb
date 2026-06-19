@@ -27,11 +27,16 @@ pub fn ServerTable(
         dialog_open.set(true);
     };
 
-    let open_edit = move |row: EditableRecord<ServerRecord>| {
-        editing_id.set(Some(row.id));
-        domain.set(row.record.domain.unwrap_or_default());
-        upstream.set(row.record.upstream);
-        dialog_open.set(true);
+    let open_edit = move |id: u64| {
+        records.with(|items| {
+            let Some(row) = items.iter().find(|row| row.id == id) else {
+                return;
+            };
+            editing_id.set(Some(id));
+            domain.set(row.record.domain.clone().unwrap_or_default());
+            upstream.set(row.record.upstream.clone());
+            dialog_open.set(true);
+        });
     };
 
     let save = move || {
@@ -57,7 +62,7 @@ pub fn ServerTable(
             </div>
 
             <EditableTable
-                is_empty=Signal::derive(move || records.get().is_empty())
+                is_empty=Signal::derive(move || records.with(Vec::is_empty))
                 empty_message=Signal::derive(move || t(locale.get(), Msg::ServerEmpty))
             >
                 <Table>
@@ -73,18 +78,18 @@ pub fn ServerTable(
                             each=move || records.get()
                             key=|row| row.id
                             children=move |row| {
-                                let edit_row = row.clone();
                                 let id = row.id;
+                                let domain_text = row.record.domain.unwrap_or_else(|| "*".into());
                                 view! {
                                     <TableRow>
-                                        <TableCell>{row.record.domain.unwrap_or_else(|| "*".into())}</TableCell>
+                                        <TableCell>{domain_text}</TableCell>
                                         <TableCell>{row.record.upstream}</TableCell>
                                         <TableCell class="actions-cell">
                                             <div class="row-actions">
                                                 <Button
                                                     size=thaw::ButtonSize::Small
                                                     button_type=thaw::ButtonType::Button
-                                                    on_click=move |_| open_edit(edit_row.clone())
+                                                    on_click=move |_| open_edit(id)
                                                 >
                                                     {move || t(locale.get(), Msg::Edit)}
                                                 </Button>

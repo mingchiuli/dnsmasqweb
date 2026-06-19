@@ -27,11 +27,16 @@ pub fn CnameTable(
         dialog_open.set(true);
     };
 
-    let open_edit = move |row: EditableRecord<CnameRecord>| {
-        editing_id.set(Some(row.id));
-        alias.set(row.record.alias);
-        canonical.set(row.record.canonical);
-        dialog_open.set(true);
+    let open_edit = move |id: u64| {
+        records.with(|items| {
+            let Some(row) = items.iter().find(|row| row.id == id) else {
+                return;
+            };
+            editing_id.set(Some(id));
+            alias.set(row.record.alias.clone());
+            canonical.set(row.record.canonical.clone());
+            dialog_open.set(true);
+        });
     };
 
     let save = move || {
@@ -56,7 +61,7 @@ pub fn CnameTable(
             </div>
 
             <EditableTable
-                is_empty=Signal::derive(move || records.get().is_empty())
+                is_empty=Signal::derive(move || records.with(Vec::is_empty))
                 empty_message=Signal::derive(move || t(locale.get(), Msg::CnameEmpty))
             >
                 <Table>
@@ -72,7 +77,6 @@ pub fn CnameTable(
                             each=move || records.get()
                             key=|row| row.id
                             children=move |row| {
-                                let edit_row = row.clone();
                                 let id = row.id;
                                 view! {
                                     <TableRow>
@@ -83,7 +87,7 @@ pub fn CnameTable(
                                                 <Button
                                                     size=thaw::ButtonSize::Small
                                                     button_type=thaw::ButtonType::Button
-                                                    on_click=move |_| open_edit(edit_row.clone())
+                                                    on_click=move |_| open_edit(id)
                                                 >
                                                     {move || t(locale.get(), Msg::Edit)}
                                                 </Button>

@@ -70,7 +70,7 @@ pub fn replace_managed_records(
 }
 
 fn collect_records_from_existing_block(config: &ParsedConfig) -> DnsRecords {
-    let mut lines = Vec::new();
+    let mut records = DnsRecords::default();
     let mut in_block = false;
 
     for line in &config.lines {
@@ -81,12 +81,21 @@ fn collect_records_from_existing_block(config: &ParsedConfig) -> DnsRecords {
             ConfigLine::Comment(value) if value.trim() == MANAGED_END => {
                 in_block = false;
             }
-            _ if in_block => lines.push(line.clone()),
+            ConfigLine::Managed(record) if in_block => push_record(&mut records, record),
             _ => {}
         }
     }
 
-    collect_records(&lines)
+    records
+}
+
+fn push_record(records: &mut DnsRecords, record: &ManagedRecord) {
+    match record {
+        ManagedRecord::Address(record) => records.address.push(record.clone()),
+        ManagedRecord::HostRecord(record) => records.host_record.push(record.clone()),
+        ManagedRecord::Cname(record) => records.cname.push(record.clone()),
+        ManagedRecord::Server(record) => records.server.push(record.clone()),
+    }
 }
 
 fn replace_existing_block(config: &ParsedConfig, records: DnsRecords) -> AppResult<ParsedConfig> {

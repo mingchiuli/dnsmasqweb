@@ -62,10 +62,10 @@ pub fn RecordsPage() -> impl IntoView {
     let backups = RwSignal::new(Vec::<BackupInfo>::new());
 
     let current_records = move || DnsRecords {
-        address: dns_records(&address.get()),
-        host_record: dns_records(&host_record.get()),
-        cname: dns_records(&cname.get()),
-        server: dns_records(&server.get()),
+        address: address.with(|records| dns_records(records)),
+        host_record: host_record.with(|records| dns_records(records)),
+        cname: cname.with(|records| dns_records(records)),
+        server: server.with(|records| dns_records(records)),
     };
 
     let apply_config_response = move |response: ConfigResponse| {
@@ -302,13 +302,19 @@ pub fn RecordsPage() -> impl IntoView {
         });
     };
 
-    let save_current = move || match active_tab.get().as_str() {
-        TAB_RAW => save_raw(false),
-        _ => save_records(false),
+    let save_current = move || {
+        if active_tab.with(|tab| tab == TAB_RAW) {
+            save_raw(false);
+        } else {
+            save_records(false);
+        }
     };
-    let apply_current = move || match active_tab.get().as_str() {
-        TAB_RAW => save_raw(true),
-        _ => save_records(true),
+    let apply_current = move || {
+        if active_tab.with(|tab| tab == TAB_RAW) {
+            save_raw(true);
+        } else {
+            save_records(true);
+        }
     };
 
     let logout = move || {
@@ -368,13 +374,13 @@ pub fn RecordsPage() -> impl IntoView {
                 </div>
 
                 <div class="alerts">
-                    <Show when=move || !message.get().is_empty()>
+                    <Show when=move || message.with(|message| !message.is_empty())>
                         <MessageBar>
                             <MessageBarBody>{move || message.get()}</MessageBarBody>
                         </MessageBar>
                     </Show>
 
-                    <Show when=move || !warnings.get().is_empty()>
+                    <Show when=move || warnings.with(|warnings| !warnings.is_empty())>
                         <MessageBar intent=MessageBarIntent::Warning layout=MessageBarLayout::Multiline>
                             <MessageBarBody>
                             <For
@@ -397,22 +403,22 @@ pub fn RecordsPage() -> impl IntoView {
                 </TabList>
 
                 <main class="content">
-                    <Show when=move || active_tab.get() == TAB_ADDRESS>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_ADDRESS)>
                         <AddressTable records=address locale=locale.into() />
                     </Show>
-                    <Show when=move || active_tab.get() == TAB_HOST_RECORD>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_HOST_RECORD)>
                         <HostRecordTable records=host_record locale=locale.into() />
                     </Show>
-                    <Show when=move || active_tab.get() == TAB_CNAME>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_CNAME)>
                         <CnameTable records=cname locale=locale.into() />
                     </Show>
-                    <Show when=move || active_tab.get() == TAB_SERVER>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_SERVER)>
                         <ServerTable records=server locale=locale.into() />
                     </Show>
-                    <Show when=move || active_tab.get() == TAB_RAW>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_RAW)>
                         <RawEditorPanel content=raw_content on_test=move |_| test_raw() locale=locale.into() />
                     </Show>
-                    <Show when=move || active_tab.get() == TAB_BACKUPS>
+                    <Show when=move || active_tab.with(|tab| tab == TAB_BACKUPS)>
                         <BackupsPanel
                             backups=backups.into()
                             on_refresh=move |_| refresh_backups()
@@ -476,7 +482,7 @@ fn AuthGate(
                         }}
                     </Button>
                 </Show>
-                <Show when=move || !message.get().is_empty()>
+                <Show when=move || message.with(|message| !message.is_empty())>
                     <MessageBar intent=MessageBarIntent::Error layout=MessageBarLayout::Multiline>
                         <MessageBarBody>{move || message.get()}</MessageBarBody>
                     </MessageBar>

@@ -10,7 +10,7 @@ pub fn StatusBadge(status: Signal<ServiceStatus>, locale: Signal<Locale>) -> imp
         <Badge
             appearance=BadgeAppearance::Tint
             color=Signal::derive(move || {
-                if status.get().active {
+                if status.with(|status| status.active) {
                     BadgeColor::Success
                 } else {
                     BadgeColor::Danger

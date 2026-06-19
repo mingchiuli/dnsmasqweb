@@ -27,11 +27,16 @@ pub fn HostRecordTable(
         dialog_open.set(true);
     };
 
-    let open_edit = move |row: EditableRecord<HostRecord>| {
-        editing_id.set(Some(row.id));
-        names.set(row.record.names.join(", "));
-        ips.set(row.record.ips.join(", "));
-        dialog_open.set(true);
+    let open_edit = move |id: u64| {
+        records.with(|items| {
+            let Some(row) = items.iter().find(|row| row.id == id) else {
+                return;
+            };
+            editing_id.set(Some(id));
+            names.set(row.record.names.join(", "));
+            ips.set(row.record.ips.join(", "));
+            dialog_open.set(true);
+        });
     };
 
     let save = move || {
@@ -56,7 +61,7 @@ pub fn HostRecordTable(
             </div>
 
             <EditableTable
-                is_empty=Signal::derive(move || records.get().is_empty())
+                is_empty=Signal::derive(move || records.with(Vec::is_empty))
                 empty_message=Signal::derive(move || t(locale.get(), Msg::HostRecordEmpty))
             >
                 <Table>
@@ -72,18 +77,19 @@ pub fn HostRecordTable(
                             each=move || records.get()
                             key=|row| row.id
                             children=move |row| {
-                                let edit_row = row.clone();
                                 let id = row.id;
+                                let names_text = row.record.names.join(", ");
+                                let ips_text = row.record.ips.join(", ");
                                 view! {
                                     <TableRow>
-                                        <TableCell>{row.record.names.join(", ")}</TableCell>
-                                        <TableCell>{row.record.ips.join(", ")}</TableCell>
+                                        <TableCell>{names_text}</TableCell>
+                                        <TableCell>{ips_text}</TableCell>
                                         <TableCell class="actions-cell">
                                             <div class="row-actions">
                                                 <Button
                                                     size=thaw::ButtonSize::Small
                                                     button_type=thaw::ButtonType::Button
-                                                    on_click=move |_| open_edit(edit_row.clone())
+                                                    on_click=move |_| open_edit(id)
                                                 >
                                                     {move || t(locale.get(), Msg::Edit)}
                                                 </Button>
