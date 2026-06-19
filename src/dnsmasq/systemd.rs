@@ -17,19 +17,8 @@ impl Systemd {
         }
     }
 
-    pub async fn reload(&self) -> AppResult<CommandReport> {
-        self.run_systemctl(&["reload", &self.service]).await
-    }
-
     pub async fn restart(&self) -> AppResult<CommandReport> {
         self.run_systemctl(&["restart", &self.service]).await
-    }
-
-    pub async fn reload_or_restart(&self) -> AppResult<CommandReport> {
-        match self.reload().await {
-            Ok(report) => Ok(report),
-            Err(_) => self.restart().await,
-        }
     }
 
     pub async fn status(&self) -> ServiceStatus {

@@ -142,7 +142,7 @@ pub async fn test_config(state: &AppState, content: Option<String>) -> AppResult
 }
 
 pub async fn reload_dnsmasq(state: &AppState) -> AppResult<CommandReport> {
-    state.inner.systemd.reload_or_restart().await
+    state.inner.systemd.restart().await
 }
 
 pub async fn status(state: &AppState) -> ServiceStatus {
@@ -171,7 +171,7 @@ pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBa
     )
     .await?;
     atomic_write::replace(&state.inner.paths.config_file, &content).await?;
-    let reload = Some(state.inner.systemd.reload_or_restart().await?);
+    let reload = Some(state.inner.systemd.restart().await?);
 
     Ok(RestoreBackupResponse {
         created_backup,
@@ -194,7 +194,7 @@ async fn persist_config(state: &AppState, content: &str, apply: bool) -> AppResu
     atomic_write::replace(&state.inner.paths.config_file, content).await?;
 
     let reload = if apply {
-        Some(state.inner.systemd.reload_or_restart().await?)
+        Some(state.inner.systemd.restart().await?)
     } else {
         None
     };
