@@ -1,9 +1,11 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use thaw::{
-    Button, ButtonAppearance, ButtonType, Field, Input, InputType, MessageBar, MessageBarBody,
-    MessageBarIntent, MessageBarLayout, Tab, TabList,
-};
+use thaw::{MessageBar, MessageBarBody, MessageBarIntent, MessageBarLayout, Tab, TabList};
+
+mod auth;
+mod notice;
+mod storage;
+mod tabs;
 
 use crate::api_types::{
     BackupInfo, ConfigResponse, SaveRawRequest, SaveRecordsRequest, TestConfigRequest,
@@ -11,7 +13,7 @@ use crate::api_types::{
 use crate::config::model::{
     AddressRecord, CnameRecord, DnsRecords, HostRecord, ServerRecord, ValidationIssue,
 };
-use crate::i18n::{Locale, Msg, t};
+use crate::i18n::{Msg, t};
 use crate::ui::api;
 use crate::ui::components::confirm_dialog::ConfirmDialog;
 use crate::ui::components::status_badge::StatusBadge;
@@ -22,47 +24,15 @@ use crate::ui::tables::address_table::AddressTable;
 use crate::ui::tables::cname_table::CnameTable;
 use crate::ui::tables::host_record_table::HostRecordTable;
 use crate::ui::tables::server_table::ServerTable;
-use crate::ui::tables::{EditableRecord, dns_records, editable_records};
-use crate::ui::text::localized;
+use crate::ui::tables::{EditableRow, editable_rows, row_values};
 
-const SESSION_STORAGE_KEY: &str = "dnsmasqweb_session";
-
-const TAB_ADDRESS: &str = "address";
-const TAB_HOST_RECORD: &str = "host-record";
-const TAB_CNAME: &str = "cname";
-const TAB_SERVER: &str = "server";
-const TAB_RAW: &str = "raw";
-const TAB_BACKUPS: &str = "backups";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AuthMode {
-    Loading,
-    Setup,
-    Login,
-    Authenticated,
-}
-
-enum NoticeMessage {
-    Localized(Msg),
-    LocalizedDetail { msg: Msg, detail: String },
-    Raw(String),
-}
-
-impl NoticeMessage {
-    fn render(&self, locale: Locale) -> String {
-        match self {
-            Self::Localized(msg) => t(locale, *msg).into(),
-            Self::LocalizedDetail { msg, detail } if detail.is_empty() => t(locale, *msg).into(),
-            Self::LocalizedDetail { msg, detail } => {
-                format!("{}: {}", t(locale, *msg), detail)
-            }
-            Self::Raw(message) => message.clone(),
-        }
-    }
-}
+use self::auth::{AuthGate, AuthMode, is_unauthorized};
+use self::notice::NoticeMessage;
+use self::storage::{load_locale, load_session_token, save_locale, save_session_token};
+use self::tabs::{TAB_ADDRESS, TAB_BACKUPS, TAB_CNAME, TAB_HOST_RECORD, TAB_RAW, TAB_SERVER};
 
 #[component]
-pub fn RecordsPage() -> impl IntoView {
+pub fn DashboardPage() -> impl IntoView {
     let token = RwSignal::new(load_session_token());
     let auth_mode = RwSignal::new(AuthMode::Loading);
     let password = RwSignal::new(String::new());
@@ -74,10 +44,10 @@ pub fn RecordsPage() -> impl IntoView {
     let service_status = RwSignal::new(crate::api_types::ServiceStatus::default());
     let unmanaged_line_count = RwSignal::new(0usize);
 
-    let address = RwSignal::new(Vec::<EditableRecord<AddressRecord>>::new());
-    let host_record = RwSignal::new(Vec::<EditableRecord<HostRecord>>::new());
-    let cname = RwSignal::new(Vec::<EditableRecord<CnameRecord>>::new());
-    let server = RwSignal::new(Vec::<EditableRecord<ServerRecord>>::new());
+    let address = RwSignal::new(Vec::<EditableRow<AddressRecord>>::new());
+    let host_record = RwSignal::new(Vec::<EditableRow<HostRecord>>::new());
+    let cname = RwSignal::new(Vec::<EditableRow<CnameRecord>>::new());
+    let server = RwSignal::new(Vec::<EditableRow<ServerRecord>>::new());
     let raw_content = RwSignal::new(String::new());
     let backups = RwSignal::new(Vec::<BackupInfo>::new());
     let delete_backup_open = RwSignal::new(false);
@@ -94,17 +64,17 @@ pub fn RecordsPage() -> impl IntoView {
     });
 
     let current_records = move || DnsRecords {
-        address: address.with(|records| dns_records(records)),
-        host_record: host_record.with(|records| dns_records(records)),
-        cname: cname.with(|records| dns_records(records)),
-        server: server.with(|records| dns_records(records)),
+        address: address.with(|rows| row_values(rows)),
+        host_record: host_record.with(|rows| row_values(rows)),
+        cname: cname.with(|rows| row_values(rows)),
+        server: server.with(|rows| row_values(rows)),
     };
 
     let apply_config_response = move |response: ConfigResponse| {
-        address.set(editable_records(response.records.address));
-        host_record.set(editable_records(response.records.host_record));
-        cname.set(editable_records(response.records.cname));
-        server.set(editable_records(response.records.server));
+        address.set(editable_rows(response.records.address));
+        host_record.set(editable_rows(response.records.host_record));
+        cname.set(editable_rows(response.records.cname));
+        server.set(editable_rows(response.records.server));
         unmanaged_line_count.set(response.unmanaged_line_count);
         warnings.set(response.warnings);
         service_status.set(response.service);
@@ -504,114 +474,4 @@ pub fn RecordsPage() -> impl IntoView {
             </Show>
         </div>
     }
-}
-
-#[component]
-fn AuthGate(
-    mode: Signal<AuthMode>,
-    password: RwSignal<String>,
-    busy: Signal<bool>,
-    message_visible: Signal<bool>,
-    message_text: Signal<String>,
-    locale: Signal<Locale>,
-    #[prop(into)] on_submit: Callback<()>,
-    #[prop(into)] on_toggle_locale: Callback<()>,
-) -> impl IntoView {
-    view! {
-        <div class="auth-shell">
-            <div class="auth-head">
-                <h1>"dnsmasqweb"</h1>
-                <Button button_type=ButtonType::Button on_click=move |_| on_toggle_locale.run(())>
-                    {move || t(locale.get(), Msg::LocaleSwitch)}
-                </Button>
-            </div>
-            <form
-                class="auth-panel"
-                on:submit=move |ev| {
-                    ev.prevent_default();
-                    on_submit.run(());
-                }
-            >
-                <h2>{move || match mode.get() {
-                    AuthMode::Setup => t(locale.get(), Msg::SetupPassword),
-                    AuthMode::Login => t(locale.get(), Msg::Login),
-                    AuthMode::Loading | AuthMode::Authenticated => t(locale.get(), Msg::Loading),
-                }}</h2>
-                <Show when=move || mode.get() != AuthMode::Loading>
-                    <Field label=localized(locale, Msg::Password)>
-                        <Input
-                            value=password
-                            input_type=InputType::Password
-                            autocomplete="current-password"
-                        />
-                    </Field>
-                    <Button
-                        appearance=ButtonAppearance::Primary
-                        button_type=ButtonType::Submit
-                        disabled=busy
-                    >
-                        {move || match mode.get() {
-                            AuthMode::Setup => t(locale.get(), Msg::SetPassword),
-                            AuthMode::Login => t(locale.get(), Msg::Login),
-                            AuthMode::Loading | AuthMode::Authenticated => t(locale.get(), Msg::Loading),
-                        }}
-                    </Button>
-                </Show>
-                <Show when=move || message_visible.get()>
-                    <MessageBar intent=MessageBarIntent::Error layout=MessageBarLayout::Multiline>
-                        <MessageBarBody>{move || message_text.get()}</MessageBarBody>
-                    </MessageBar>
-                </Show>
-            </form>
-        </div>
-    }
-}
-
-fn load_locale() -> Locale {
-    let Some(window) = web_sys::window() else {
-        return Locale::default();
-    };
-    let Ok(Some(storage)) = window.local_storage() else {
-        return Locale::default();
-    };
-    storage
-        .get_item("dnsmasqweb_locale")
-        .ok()
-        .flatten()
-        .as_deref()
-        .map(Locale::from)
-        .unwrap_or_default()
-}
-
-fn save_locale(locale: Locale) {
-    if let Some(window) = web_sys::window()
-        && let Ok(Some(storage)) = window.local_storage()
-    {
-        let _ = storage.set_item("dnsmasqweb_locale", locale.code());
-    }
-}
-
-fn load_session_token() -> Option<String> {
-    let window = web_sys::window()?;
-    let storage = window.local_storage().ok()??;
-    storage.get_item(SESSION_STORAGE_KEY).ok().flatten()
-}
-
-fn save_session_token(token: Option<&str>) {
-    if let Some(window) = web_sys::window()
-        && let Ok(Some(storage)) = window.local_storage()
-    {
-        match token {
-            Some(token) => {
-                let _ = storage.set_item(SESSION_STORAGE_KEY, token);
-            }
-            None => {
-                let _ = storage.remove_item(SESSION_STORAGE_KEY);
-            }
-        }
-    }
-}
-
-fn is_unauthorized(error: &str) -> bool {
-    error.contains("unauthorized")
 }

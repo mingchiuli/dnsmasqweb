@@ -7,12 +7,12 @@ use thaw::{
 use crate::config::model::HostRecord;
 use crate::i18n::{Locale, Msg, t};
 use crate::ui::components::editable_table::EditableTable;
-use crate::ui::tables::{EditableRecord, remove_record, upsert_record};
+use crate::ui::tables::{EditableRow, remove_row, upsert_row};
 use crate::ui::text::localized;
 
 #[component]
 pub fn HostRecordTable(
-    records: RwSignal<Vec<EditableRecord<HostRecord>>>,
+    records: RwSignal<Vec<EditableRow<HostRecord>>>,
     locale: Signal<Locale>,
 ) -> impl IntoView {
     let dialog_open = RwSignal::new(false);
@@ -33,14 +33,14 @@ pub fn HostRecordTable(
                 return;
             };
             editing_id.set(Some(id));
-            names.set(row.record.names.join(", "));
-            ips.set(row.record.ips.join(", "));
+            names.set(row.value.names.join(", "));
+            ips.set(row.value.ips.join(", "));
             dialog_open.set(true);
         });
     };
 
     let save = move || {
-        upsert_record(
+        upsert_row(
             records,
             editing_id.get_untracked(),
             HostRecord {
@@ -78,8 +78,8 @@ pub fn HostRecordTable(
                             key=|row| row.id
                             children=move |row| {
                                 let id = row.id;
-                                let names_text = row.record.names.join(", ");
-                                let ips_text = row.record.ips.join(", ");
+                                let names_text = row.value.names.join(", ");
+                                let ips_text = row.value.ips.join(", ");
                                 view! {
                                     <TableRow>
                                         <TableCell>{names_text}</TableCell>
@@ -97,7 +97,7 @@ pub fn HostRecordTable(
                                                     size=thaw::ButtonSize::Small
                                                     appearance=ButtonAppearance::Subtle
                                                     button_type=thaw::ButtonType::Button
-                                                    on_click=move |_| remove_record(records, id)
+                                                    on_click=move |_| remove_row(records, id)
                                                 >
                                                     {move || t(locale.get(), Msg::Delete)}
                                                 </Button>

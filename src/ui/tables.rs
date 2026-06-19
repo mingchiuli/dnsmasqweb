@@ -7,56 +7,56 @@ use leptos::prelude::{RwSignal, Update};
 use std::cell::Cell;
 
 thread_local! {
-    static NEXT_EDITABLE_RECORD_ID: Cell<u64> = const { Cell::new(1) };
+    static NEXT_EDITABLE_ROW_ID: Cell<u64> = const { Cell::new(1) };
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EditableRecord<T> {
+pub struct EditableRow<T> {
     pub id: u64,
-    pub record: T,
+    pub value: T,
 }
 
-impl<T> EditableRecord<T> {
-    pub fn new(record: T) -> Self {
+impl<T> EditableRow<T> {
+    pub fn new(value: T) -> Self {
         Self {
-            id: next_editable_record_id(),
-            record,
+            id: next_editable_row_id(),
+            value,
         }
     }
 }
 
-fn next_editable_record_id() -> u64 {
-    NEXT_EDITABLE_RECORD_ID.with(|next| {
+fn next_editable_row_id() -> u64 {
+    NEXT_EDITABLE_ROW_ID.with(|next| {
         let id = next.get();
         next.set(id + 1);
         id
     })
 }
 
-pub fn editable_records<T>(records: Vec<T>) -> Vec<EditableRecord<T>> {
-    records.into_iter().map(EditableRecord::new).collect()
+pub fn editable_rows<T>(values: Vec<T>) -> Vec<EditableRow<T>> {
+    values.into_iter().map(EditableRow::new).collect()
 }
 
-pub fn dns_records<T: Clone>(records: &[EditableRecord<T>]) -> Vec<T> {
-    records.iter().map(|row| row.record.clone()).collect()
+pub fn row_values<T: Clone>(rows: &[EditableRow<T>]) -> Vec<T> {
+    rows.iter().map(|row| row.value.clone()).collect()
 }
 
-pub fn remove_record<T: Send + Sync + 'static>(records: RwSignal<Vec<EditableRecord<T>>>, id: u64) {
-    records.update(|items| items.retain(|item| item.id != id));
+pub fn remove_row<T: Send + Sync + 'static>(rows: RwSignal<Vec<EditableRow<T>>>, id: u64) {
+    rows.update(|items| items.retain(|item| item.id != id));
 }
 
-pub fn upsert_record<T: Send + Sync + 'static>(
-    records: RwSignal<Vec<EditableRecord<T>>>,
+pub fn upsert_row<T: Send + Sync + 'static>(
+    rows: RwSignal<Vec<EditableRow<T>>>,
     id: Option<u64>,
-    record: T,
+    value: T,
 ) {
-    records.update(|items| {
+    rows.update(|items| {
         if let Some(id) = id
             && let Some(item) = items.iter_mut().find(|item| item.id == id)
         {
-            item.record = record;
+            item.value = value;
             return;
         }
-        items.push(EditableRecord::new(record));
+        items.push(EditableRow::new(value));
     });
 }

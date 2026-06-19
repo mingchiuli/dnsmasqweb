@@ -7,12 +7,12 @@ use thaw::{
 use crate::config::model::ServerRecord;
 use crate::i18n::{Locale, Msg, t};
 use crate::ui::components::editable_table::EditableTable;
-use crate::ui::tables::{EditableRecord, remove_record, upsert_record};
+use crate::ui::tables::{EditableRow, remove_row, upsert_row};
 use crate::ui::text::localized;
 
 #[component]
 pub fn ServerTable(
-    records: RwSignal<Vec<EditableRecord<ServerRecord>>>,
+    records: RwSignal<Vec<EditableRow<ServerRecord>>>,
     locale: Signal<Locale>,
 ) -> impl IntoView {
     let dialog_open = RwSignal::new(false);
@@ -33,15 +33,15 @@ pub fn ServerTable(
                 return;
             };
             editing_id.set(Some(id));
-            domain.set(row.record.domain.clone().unwrap_or_default());
-            upstream.set(row.record.upstream.clone());
+            domain.set(row.value.domain.clone().unwrap_or_default());
+            upstream.set(row.value.upstream.clone());
             dialog_open.set(true);
         });
     };
 
     let save = move || {
         let domain_value = domain.get_untracked();
-        upsert_record(
+        upsert_row(
             records,
             editing_id.get_untracked(),
             ServerRecord {
@@ -79,11 +79,11 @@ pub fn ServerTable(
                             key=|row| row.id
                             children=move |row| {
                                 let id = row.id;
-                                let domain_text = row.record.domain.unwrap_or_else(|| "*".into());
+                                let domain_text = row.value.domain.unwrap_or_else(|| "*".into());
                                 view! {
                                     <TableRow>
                                         <TableCell>{domain_text}</TableCell>
-                                        <TableCell>{row.record.upstream}</TableCell>
+                                        <TableCell>{row.value.upstream}</TableCell>
                                         <TableCell class="actions-cell">
                                             <div class="row-actions">
                                                 <Button
@@ -97,7 +97,7 @@ pub fn ServerTable(
                                                     size=thaw::ButtonSize::Small
                                                     appearance=ButtonAppearance::Subtle
                                                     button_type=thaw::ButtonType::Button
-                                                    on_click=move |_| remove_record(records, id)
+                                                    on_click=move |_| remove_row(records, id)
                                                 >
                                                     {move || t(locale.get(), Msg::Delete)}
                                                 </Button>

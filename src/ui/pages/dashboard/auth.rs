@@ -1,0 +1,81 @@
+use leptos::prelude::*;
+use thaw::{
+    Button, ButtonAppearance, ButtonType, Field, Input, InputType, MessageBar, MessageBarBody,
+    MessageBarIntent, MessageBarLayout,
+};
+
+use crate::i18n::{Locale, Msg, t};
+use crate::ui::text::localized;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AuthMode {
+    Loading,
+    Setup,
+    Login,
+    Authenticated,
+}
+
+pub(super) fn is_unauthorized(error: &str) -> bool {
+    error.contains("unauthorized")
+}
+
+#[component]
+pub(super) fn AuthGate(
+    mode: Signal<AuthMode>,
+    password: RwSignal<String>,
+    busy: Signal<bool>,
+    message_visible: Signal<bool>,
+    message_text: Signal<String>,
+    locale: Signal<Locale>,
+    #[prop(into)] on_submit: Callback<()>,
+    #[prop(into)] on_toggle_locale: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <div class="auth-shell">
+            <div class="auth-head">
+                <h1>"dnsmasqweb"</h1>
+                <Button button_type=ButtonType::Button on_click=move |_| on_toggle_locale.run(())>
+                    {move || t(locale.get(), Msg::LocaleSwitch)}
+                </Button>
+            </div>
+            <form
+                class="auth-panel"
+                on:submit=move |ev| {
+                    ev.prevent_default();
+                    on_submit.run(());
+                }
+            >
+                <h2>{move || match mode.get() {
+                    AuthMode::Setup => t(locale.get(), Msg::SetupPassword),
+                    AuthMode::Login => t(locale.get(), Msg::Login),
+                    AuthMode::Loading | AuthMode::Authenticated => t(locale.get(), Msg::Loading),
+                }}</h2>
+                <Show when=move || mode.get() != AuthMode::Loading>
+                    <Field label=localized(locale, Msg::Password)>
+                        <Input
+                            value=password
+                            input_type=InputType::Password
+                            autocomplete="current-password"
+                        />
+                    </Field>
+                    <Button
+                        appearance=ButtonAppearance::Primary
+                        button_type=ButtonType::Submit
+                        disabled=busy
+                    >
+                        {move || match mode.get() {
+                            AuthMode::Setup => t(locale.get(), Msg::SetPassword),
+                            AuthMode::Login => t(locale.get(), Msg::Login),
+                            AuthMode::Loading | AuthMode::Authenticated => t(locale.get(), Msg::Loading),
+                        }}
+                    </Button>
+                </Show>
+                <Show when=move || message_visible.get()>
+                    <MessageBar intent=MessageBarIntent::Error layout=MessageBarLayout::Multiline>
+                        <MessageBarBody>{move || message_text.get()}</MessageBarBody>
+                    </MessageBar>
+                </Show>
+            </form>
+        </div>
+    }
+}
