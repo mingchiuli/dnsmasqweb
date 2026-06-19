@@ -119,6 +119,14 @@ pub async fn restore_backup(
         .map_err(server_error)
 }
 
+#[server(DeleteBackup, "/api")]
+pub async fn delete_backup(token: Option<String>, id: String) -> Result<(), ServerFnError> {
+    let state = authed_state(token).await?;
+    crate::server::services::delete_backup(&state, id)
+        .await
+        .map_err(server_error)
+}
+
 #[cfg(feature = "ssr")]
 fn app_state() -> Result<crate::server::state::AppState, ServerFnError> {
     use_context::<crate::server::state::AppState>()

@@ -153,8 +153,12 @@ pub async fn list_backups(state: &AppState) -> AppResult<Vec<BackupInfo>> {
     backup::list_backups(&state.inner.paths.backup_dir).await
 }
 
+pub async fn delete_backup(state: &AppState, id: String) -> AppResult<()> {
+    backup::delete_backup(&state.inner.paths.backup_dir, &id).await
+}
+
 pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBackupResponse> {
-    let path = backup::backup_path(&state.inner.paths.backup_dir, &id);
+    let path = backup::checked_backup_path(&state.inner.paths.backup_dir, &id)?;
     let content = fs::read_to_string(&path).await?;
     let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, &content).await?;
     let test = state.inner.dnsmasq.test_config(&temp_path).await;

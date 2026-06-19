@@ -4,6 +4,7 @@ dist = "dist"
 public_url = "/"
 no_default_features = true
 features = ["csr"]
+no_sri = true
 
 [watch]
 ignore = ["dist", "target"]

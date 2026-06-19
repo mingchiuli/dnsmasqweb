@@ -13,6 +13,7 @@ use crate::config::model::{
 };
 use crate::i18n::{Locale, Msg, t};
 use crate::ui::api;
+use crate::ui::components::confirm_dialog::ConfirmDialog;
 use crate::ui::components::status_badge::StatusBadge;
 use crate::ui::components::toolbar::Toolbar;
 use crate::ui::pages::backups::BackupsPanel;
@@ -41,6 +42,25 @@ enum AuthMode {
     Authenticated,
 }
 
+enum NoticeMessage {
+    Localized(Msg),
+    LocalizedDetail { msg: Msg, detail: String },
+    Raw(String),
+}
+
+impl NoticeMessage {
+    fn render(&self, locale: Locale) -> String {
+        match self {
+            Self::Localized(msg) => t(locale, *msg).into(),
+            Self::LocalizedDetail { msg, detail } if detail.is_empty() => t(locale, *msg).into(),
+            Self::LocalizedDetail { msg, detail } => {
+                format!("{}: {}", t(locale, *msg), detail)
+            }
+            Self::Raw(message) => message.clone(),
+        }
+    }
+}
+
 #[component]
 pub fn RecordsPage() -> impl IntoView {
     let token = RwSignal::new(load_session_token());
@@ -49,7 +69,7 @@ pub fn RecordsPage() -> impl IntoView {
     let locale = RwSignal::new(load_locale());
     let active_tab = RwSignal::new(String::from(TAB_ADDRESS));
     let busy = RwSignal::new(false);
-    let message = RwSignal::new(String::new());
+    let message = RwSignal::new(None::<NoticeMessage>);
     let warnings = RwSignal::new(Vec::<ValidationIssue>::new());
     let service_status = RwSignal::new(crate::api_types::ServiceStatus::default());
     let unmanaged_line_count = RwSignal::new(0usize);
@@ -60,6 +80,18 @@ pub fn RecordsPage() -> impl IntoView {
     let server = RwSignal::new(Vec::<EditableRecord<ServerRecord>>::new());
     let raw_content = RwSignal::new(String::new());
     let backups = RwSignal::new(Vec::<BackupInfo>::new());
+    let delete_backup_open = RwSignal::new(false);
+    let deleting_backup_id = RwSignal::new(None::<String>);
+    let message_visible = Signal::derive(move || message.with(|message| message.is_some()));
+    let message_text = Signal::derive(move || {
+        let locale = locale.get();
+        message.with(|message| {
+            message
+                .as_ref()
+                .map(|message| message.render(locale))
+                .unwrap_or_default()
+        })
+    });
 
     let current_records = move || DnsRecords {
         address: address.with(|records| dns_records(records)),
@@ -88,9 +120,9 @@ pub fn RecordsPage() -> impl IntoView {
         if is_unauthorized(&error) {
             clear_session();
             auth_mode.set(AuthMode::Login);
-            message.set(t(locale.get_untracked(), Msg::LoginRequired).into());
+            message.set(Some(NoticeMessage::Localized(Msg::LoginRequired)));
         } else {
-            message.set(error);
+            message.set(Some(NoticeMessage::Raw(error)));
         }
     };
 
@@ -106,7 +138,7 @@ pub fn RecordsPage() -> impl IntoView {
                 Ok(response) => {
                     apply_config_response(response);
                     auth_mode.set(AuthMode::Authenticated);
-                    message.set(t(locale.get_untracked(), Msg::ConfigRefreshed).into());
+                    message.set(Some(NoticeMessage::Localized(Msg::ConfigRefreshed)));
                 }
                 Err(error) => handle_error(error),
             }
@@ -159,7 +191,7 @@ pub fn RecordsPage() -> impl IntoView {
                     }
                 }
                 Err(error) => {
-                    message.set(error);
+                    message.set(Some(NoticeMessage::Raw(error)));
                     auth_mode.set(AuthMode::Login);
                     busy.set(false);
                 }
@@ -169,7 +201,7 @@ pub fn RecordsPage() -> impl IntoView {
 
     let submit_auth = move || {
         busy.set(true);
-        message.set(String::new());
+        message.set(None);
         let password_value = password.get();
         let mode = auth_mode.get_untracked();
         spawn_local(async move {
@@ -191,7 +223,7 @@ pub fn RecordsPage() -> impl IntoView {
                     load_all();
                 }
                 Err(error) => {
-                    message.set(error);
+                    message.set(Some(NoticeMessage::Raw(error)));
                     busy.set(false);
                 }
             }
@@ -208,11 +240,11 @@ pub fn RecordsPage() -> impl IntoView {
             match response {
                 Ok(response) => {
                     warnings.set(response.warnings);
-                    message.set(if apply {
-                        t(locale.get_untracked(), Msg::RecordsSavedApplied).into()
+                    message.set(Some(NoticeMessage::Localized(if apply {
+                        Msg::RecordsSavedApplied
                     } else {
-                        t(locale.get_untracked(), Msg::RecordsSaved).into()
-                    });
+                        Msg::RecordsSaved
+                    })));
                     sync_all_silent();
                 }
                 Err(error) => handle_error(error),
@@ -231,11 +263,11 @@ pub fn RecordsPage() -> impl IntoView {
             match response {
                 Ok(response) => {
                     warnings.set(response.warnings);
-                    message.set(if apply {
-                        t(locale.get_untracked(), Msg::RawConfigSavedApplied).into()
+                    message.set(Some(NoticeMessage::Localized(if apply {
+                        Msg::RawConfigSavedApplied
                     } else {
-                        t(locale.get_untracked(), Msg::RawConfigSaved).into()
-                    });
+                        Msg::RawConfigSaved
+                    })));
                     sync_all_silent();
                 }
                 Err(error) => handle_error(error),
@@ -263,11 +295,10 @@ pub fn RecordsPage() -> impl IntoView {
                     } else {
                         report.stdout
                     };
-                    message.set(format!(
-                        "{}: {}",
-                        t(locale.get_untracked(), Msg::TestPassed),
-                        output.trim()
-                    ));
+                    message.set(Some(NoticeMessage::LocalizedDetail {
+                        msg: Msg::TestPassed,
+                        detail: output.trim().into(),
+                    }));
                 }
                 Err(error) => handle_error(error),
             }
@@ -291,7 +322,7 @@ pub fn RecordsPage() -> impl IntoView {
         spawn_local(async move {
             match api::restore_backup(token_value, id).await {
                 Ok(_) => {
-                    message.set(t(locale.get_untracked(), Msg::RestoreApplied).into());
+                    message.set(Some(NoticeMessage::Localized(Msg::RestoreApplied)));
                     load_all();
                 }
                 Err(error) => {
@@ -299,6 +330,39 @@ pub fn RecordsPage() -> impl IntoView {
                     busy.set(false);
                 }
             }
+        });
+    };
+
+    let request_delete_backup = move |id: String| {
+        deleting_backup_id.set(Some(id));
+        delete_backup_open.set(true);
+    };
+
+    let cancel_delete_backup = move || {
+        deleting_backup_id.set(None);
+        delete_backup_open.set(false);
+    };
+
+    let delete_backup = move || {
+        let Some(id) = deleting_backup_id.update_untracked(Option::take) else {
+            delete_backup_open.set(false);
+            return;
+        };
+        busy.set(true);
+        delete_backup_open.set(false);
+        let token_value = token.get();
+        spawn_local(async move {
+            match api::delete_backup(token_value.clone(), id).await {
+                Ok(()) => {
+                    message.set(Some(NoticeMessage::Localized(Msg::BackupDeleted)));
+                    match api::list_backups(token_value).await {
+                        Ok(response) => backups.set(response),
+                        Err(error) => handle_error(error),
+                    }
+                }
+                Err(error) => handle_error(error),
+            }
+            busy.set(false);
         });
     };
 
@@ -321,7 +385,7 @@ pub fn RecordsPage() -> impl IntoView {
         let token_value = token.get();
         clear_session();
         auth_mode.set(AuthMode::Login);
-        message.set(String::new());
+        message.set(None);
         spawn_local(async move {
             let _ = api::logout(token_value).await;
         });
@@ -340,7 +404,8 @@ pub fn RecordsPage() -> impl IntoView {
                         mode=auth_mode.into()
                         password=password
                         busy=busy.into()
-                        message=message.into()
+                        message_visible=message_visible
+                        message_text=message_text
                         locale=locale.into()
                         on_submit=move |_| submit_auth()
                         on_toggle_locale=move |_| {
@@ -374,9 +439,9 @@ pub fn RecordsPage() -> impl IntoView {
                 </div>
 
                 <div class="alerts">
-                    <Show when=move || message.with(|message| !message.is_empty())>
+                    <Show when=move || message_visible.get()>
                         <MessageBar>
-                            <MessageBarBody>{move || message.get()}</MessageBarBody>
+                            <MessageBarBody>{move || message_text.get()}</MessageBarBody>
                         </MessageBar>
                     </Show>
 
@@ -423,10 +488,19 @@ pub fn RecordsPage() -> impl IntoView {
                             backups=backups.into()
                             on_refresh=move |_| refresh_backups()
                             on_restore=move |id| restore_backup(id)
+                            on_delete=move |id| request_delete_backup(id)
                             locale=locale.into()
                         />
                     </Show>
                 </main>
+
+                <ConfirmDialog
+                    open=delete_backup_open
+                    message=Signal::derive(move || t(locale.get(), Msg::BackupDeleteConfirm).into())
+                    on_confirm=move |_| delete_backup()
+                    on_cancel=move |_| cancel_delete_backup()
+                    locale=locale.into()
+                />
             </Show>
         </div>
     }
@@ -437,7 +511,8 @@ fn AuthGate(
     mode: Signal<AuthMode>,
     password: RwSignal<String>,
     busy: Signal<bool>,
-    message: Signal<String>,
+    message_visible: Signal<bool>,
+    message_text: Signal<String>,
     locale: Signal<Locale>,
     #[prop(into)] on_submit: Callback<()>,
     #[prop(into)] on_toggle_locale: Callback<()>,
@@ -482,9 +557,9 @@ fn AuthGate(
                         }}
                     </Button>
                 </Show>
-                <Show when=move || message.with(|message| !message.is_empty())>
+                <Show when=move || message_visible.get()>
                     <MessageBar intent=MessageBarIntent::Error layout=MessageBarLayout::Multiline>
-                        <MessageBarBody>{move || message.get()}</MessageBarBody>
+                        <MessageBarBody>{move || message_text.get()}</MessageBarBody>
                     </MessageBar>
                 </Show>
             </form>

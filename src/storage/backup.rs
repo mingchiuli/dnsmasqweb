@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use tokio::fs;
 
 use crate::api_types::BackupInfo;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 
 pub async fn create_backup(config_file: &Path, backup_dir: &Path) -> AppResult<BackupInfo> {
     fs::create_dir_all(backup_dir).await?;
@@ -51,8 +51,34 @@ pub async fn list_backups(backup_dir: &Path) -> AppResult<Vec<BackupInfo>> {
     Ok(backups)
 }
 
-pub fn backup_path(backup_dir: &Path, id: &str) -> PathBuf {
-    backup_dir.join(format!("dnsmasq.conf.{id}"))
+pub async fn delete_backup(backup_dir: &Path, id: &str) -> AppResult<()> {
+    let path = checked_backup_path(backup_dir, id)?;
+    let metadata = fs::metadata(&path).await?;
+    if !metadata.is_file() {
+        return Err(AppError::InvalidConfig(format!(
+            "backup is not a file: {id}"
+        )));
+    }
+    fs::remove_file(path).await?;
+    Ok(())
+}
+
+pub fn checked_backup_path(backup_dir: &Path, id: &str) -> AppResult<PathBuf> {
+    validate_backup_id(id)?;
+    Ok(backup_dir.join(format!("dnsmasq.conf.{id}")))
+}
+
+fn validate_backup_id(id: &str) -> AppResult<()> {
+    if id.is_empty()
+        || id.contains('/')
+        || id.contains('\\')
+        || id == "."
+        || id == ".."
+        || id.contains("..")
+    {
+        return Err(AppError::InvalidConfig(format!("invalid backup id: {id}")));
+    }
+    Ok(())
 }
 
 async fn backup_info(

@@ -74,6 +74,12 @@ pub async fn restore_backup(
         .map_err(server_fn_error)
 }
 
+pub async fn delete_backup(token: Option<String>, id: String) -> Result<(), String> {
+    server_fns::delete_backup(token, id)
+        .await
+        .map_err(server_fn_error)
+}
+
 fn server_fn_error(error: leptos::prelude::ServerFnError) -> String {
     error.to_string()
 }

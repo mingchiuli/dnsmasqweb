@@ -13,6 +13,7 @@ pub fn BackupsPanel(
     backups: Signal<Vec<BackupInfo>>,
     #[prop(into)] on_refresh: Callback<()>,
     #[prop(into)] on_restore: Callback<String>,
+    #[prop(into)] on_delete: Callback<String>,
     locale: Signal<Locale>,
 ) -> impl IntoView {
     view! {
@@ -38,10 +39,11 @@ pub fn BackupsPanel(
                             each=move || backups.get()
                             key=|backup| backup.id.clone()
                             children=move |backup| {
-                                let backup_id = backup.id.clone();
-                                let path = backup.path.clone();
+                                let backup_id = backup.id;
+                                let path = backup.path;
                                 let size = backup.size;
-                                let id = backup_id.clone();
+                                let restore_id = backup_id.clone();
+                                let delete_id = backup_id.clone();
                                 let local_time = format_local_time(&backup.created_at.to_rfc3339(), locale.get_untracked());
                                 view! {
                                     <TableRow>
@@ -54,14 +56,24 @@ pub fn BackupsPanel(
                                         <TableCell>{move || format!("{} {}", size, t(locale.get(), Msg::BackupSize))}</TableCell>
                                         <TableCell>{path}</TableCell>
                                         <TableCell class="actions-cell">
-                                            <Button
-                                                size=thaw::ButtonSize::Small
-                                                appearance=ButtonAppearance::Subtle
-                                                button_type=ButtonType::Button
-                                                on_click=move |_| on_restore.run(id.clone())
-                                            >
-                                                {move || t(locale.get(), Msg::Restore)}
-                                            </Button>
+                                            <div class="row-actions">
+                                                <Button
+                                                    size=thaw::ButtonSize::Small
+                                                    appearance=ButtonAppearance::Subtle
+                                                    button_type=ButtonType::Button
+                                                    on_click=move |_| on_restore.run(restore_id.clone())
+                                                >
+                                                    {move || t(locale.get(), Msg::Restore)}
+                                                </Button>
+                                                <Button
+                                                    size=thaw::ButtonSize::Small
+                                                    appearance=ButtonAppearance::Subtle
+                                                    button_type=ButtonType::Button
+                                                    on_click=move |_| on_delete.run(delete_id.clone())
+                                                >
+                                                    {move || t(locale.get(), Msg::Delete)}
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 }
