@@ -5,7 +5,7 @@ use crate::api_types::ServiceStatus;
 use crate::i18n::{Locale, Msg, t};
 
 #[component]
-pub fn StatusBadge(status: Signal<ServiceStatus>, locale: Signal<Locale>) -> impl IntoView {
+pub fn status_badge(status: Signal<ServiceStatus>, locale: Signal<Locale>) -> impl IntoView {
     view! {
         <Badge
             appearance=BadgeAppearance::Tint

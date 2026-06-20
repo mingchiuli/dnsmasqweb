@@ -32,7 +32,7 @@ use self::storage::{load_locale, load_session_token, save_locale, save_session_t
 use self::tabs::{TAB_ADDRESS, TAB_BACKUPS, TAB_CNAME, TAB_HOST_RECORD, TAB_RAW, TAB_SERVER};
 
 #[component]
-pub fn DashboardPage() -> impl IntoView {
+pub fn dashboard_page() -> impl IntoView {
     let token = RwSignal::new(load_session_token());
     let auth_mode = RwSignal::new(AuthMode::Loading);
     let password = RwSignal::new(String::new());

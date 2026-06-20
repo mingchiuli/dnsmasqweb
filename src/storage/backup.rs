@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
@@ -47,7 +48,7 @@ pub async fn list_backups(backup_dir: &Path) -> AppResult<Vec<BackupInfo>> {
         });
     }
 
-    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    backups.sort_by_key(|backup| Reverse(backup.created_at));
     Ok(backups)
 }
 

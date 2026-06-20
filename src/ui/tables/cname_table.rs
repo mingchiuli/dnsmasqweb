@@ -11,7 +11,7 @@ use crate::ui::tables::{EditableRow, find_row, remove_row, upsert_row};
 use crate::ui::text::localized;
 
 #[component]
-pub fn CnameTable(
+pub fn cname_table(
     records: RwSignal<Vec<EditableRow<CnameRecord>>>,
     locale: Signal<Locale>,
 ) -> impl IntoView {

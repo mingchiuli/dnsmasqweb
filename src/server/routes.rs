@@ -5,7 +5,8 @@ use axum::http::{Method, Request};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post, put};
 use leptos::context::provide_context;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
+use tracing::Level;
 
 use crate::server::handlers;
 use crate::server::state::AppState;
@@ -25,7 +26,12 @@ pub fn router(state: AppState) -> Router {
 
     router
         .fallback(handlers::static_assets)
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            TraceLayer::new_for_http()
+                .on_request(DefaultOnRequest::new().level(Level::DEBUG))
+                .on_response(DefaultOnResponse::new().level(Level::DEBUG))
+                .on_failure(DefaultOnFailure::new().level(Level::WARN)),
+        )
         .with_state(state)
 }
 

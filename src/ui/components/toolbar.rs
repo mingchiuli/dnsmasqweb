@@ -4,7 +4,7 @@ use thaw::{Button, ButtonAppearance, ButtonType};
 use crate::i18n::{Locale, Msg, t};
 
 #[component]
-pub fn Toolbar(
+pub fn toolbar(
     title: &'static str,
     #[prop(into)] on_refresh: Callback<()>,
     #[prop(into)] on_save: Callback<()>,

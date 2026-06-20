@@ -9,7 +9,7 @@ use crate::api_types::BackupInfo;
 use crate::i18n::{Locale, Msg, t};
 
 #[component]
-pub fn BackupsPanel(
+pub fn backups_panel(
     backups: Signal<Vec<BackupInfo>>,
     #[prop(into)] on_refresh: Callback<()>,
     #[prop(into)] on_restore: Callback<String>,

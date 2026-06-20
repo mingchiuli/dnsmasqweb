@@ -7,7 +7,7 @@ use thaw::{
 use crate::i18n::{Locale, Msg, t};
 
 #[component]
-pub fn ConfirmDialog(
+pub fn confirm_dialog(
     open: RwSignal<bool>,
     message: Signal<String>,
     #[prop(into)] on_confirm: Callback<()>,

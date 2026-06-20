@@ -1,5 +1,6 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Locale {
+    #[default]
     ZhCn,
     En,
 }
@@ -17,12 +18,6 @@ impl Locale {
             Self::ZhCn => Self::En,
             Self::En => Self::ZhCn,
         }
-    }
-}
-
-impl Default for Locale {
-    fn default() -> Self {
-        Self::ZhCn
     }
 }
 

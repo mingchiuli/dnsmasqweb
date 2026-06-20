@@ -1,72 +1,45 @@
 # dnsmasqweb
 
-Rust + Leptos + Axum based dnsmasq configuration UI for a narrow, maintainable
-static DNS surface:
+Small Rust web UI for managing a limited dnsmasq static DNS surface:
 
 - `address=`
 - `host-record=`
 - `cname=`
 - `server=`
 
-Unknown directives, comments and blank lines are preserved. They are visible in
-the raw editor, but are not exposed in the classified forms.
+Unknown directives, comments, and blank lines are preserved. They can still be
+edited from the raw config editor.
 
 ## Scope
 
-dnsmasqweb is intended for hosts that already run dnsmasq directly on the
-machine, typically as a systemd service, and only need a small web UI for editing
-the local dnsmasq config, testing it, backing it up, and reloading dnsmasq.
+This project is intended for small deployments where dnsmasq runs directly on
+the same Linux host, typically as a systemd service, and only a narrow static DNS
+editing UI is needed.
 
-It is a good fit for non-container deployments such as home lab gateways, small
-office DNS hosts, WireGuard/VPN DNS nodes, or appliance-like Linux machines
-where dnsmasq owns `/etc/dnsmasq.conf`.
+Good fits include home lab gateways, small office DNS hosts, VPN DNS nodes, and
+appliance-like machines that manage a local dnsmasq config file.
 
-It is not designed to be a container orchestration layer, a full DNS management
-platform, or a replacement for running dnsmasq itself. The server process expects
-local filesystem access to the config file and permission to execute
-`dnsmasq --test` plus `systemctl reload/restart dnsmasq`.
-
-The frontend calls backend operations through Leptos server functions mounted on
-Axum, so configuration actions are defined as Rust functions instead of a
-separate hand-written REST client.
+It is not a full DNS management platform, container orchestration layer, or
+replacement for dnsmasq itself. The process needs local access to the config
+file and permission to test and reload the dnsmasq service.
 
 ## Build
 
-Local release build:
-
 ```bash
 cargo install trunk --locked
-rustup target add wasm32-unknown-unknown
+rustup toolchain install 1.96.0 --component clippy,rustfmt --target wasm32-unknown-unknown
 env -u NO_COLOR trunk build --release --no-default-features --features csr
 cargo build --release --bin dnsmasqweb --features ssr
 ```
 
-This builds the Leptos WASM frontend into `dist/`, then embeds that directory
-into the Axum server binary:
+Build the frontend first. The server binary embeds the generated `dist/`
+frontend assets.
+
+The release binary is:
 
 ```text
 target/release/dnsmasqweb
 ```
-
-Run the commands in this order. The server binary embeds files from `dist/`, so
-building the server before `trunk build` will not include the latest frontend
-assets.
-
-Trunk normally downloads the matching `wasm-bindgen` CLI automatically. In a
-restricted network, install the CLI version requested by Trunk once and rerun the
-build.
-
-## GitHub Release
-
-Push a tag to build release artifacts:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The GitHub Actions workflow builds Linux musl `x86_64` and `aarch64` tarballs
-and uploads them to the GitHub Release.
 
 ## Run
 
@@ -74,16 +47,38 @@ and uploads them to the GitHub Release.
 ./dnsmasqweb \
   --config /etc/dnsmasq.conf \
   --backup-dir /var/backups/dnsmasqweb \
-  --listen 10.10.0.1:8080
+  --listen 127.0.0.1:8080
 ```
 
-Recommended production setup is to bind only to `127.0.0.1` or the WireGuard
-address, not a public interface.
+Options can also be set with environment variables:
 
-On first browser access after the service starts, set the admin password in the
-web UI. The bcrypt password hash and issued session tokens are kept only in
-server memory. Login tokens are valid for 24 hours, are stored by the browser in
-`localStorage`, and become invalid immediately when the service restarts.
+```text
+DNSMASQWEB_CONFIG
+DNSMASQWEB_BACKUP_DIR
+DNSMASQWEB_LISTEN
+DNSMASQWEB_DNSMASQ_BIN
+DNSMASQWEB_SERVICE
+```
+
+For production, bind to `127.0.0.1` or a private/VPN address.
+
+On first browser access after startup, set the admin password in the UI. The
+password hash and session tokens are kept in server memory. Browser tokens are
+stored in `localStorage`, expire after 24 hours, and become invalid after the
+service restarts.
+
+## Permissions
+
+The process needs permission to write the dnsmasq config file, create backups,
+and run:
+
+```text
+/usr/sbin/dnsmasq --test --conf-file=...
+systemctl reload dnsmasq
+systemctl restart dnsmasq
+```
+
+Use `--dnsmasq-bin` and `--service` if your paths or service name differ.
 
 ## Systemd
 
@@ -96,17 +91,9 @@ After=network.target
 ExecStart=/usr/local/bin/dnsmasqweb \
   --config /etc/dnsmasq.conf \
   --backup-dir /var/backups/dnsmasqweb \
-  --listen 10.10.0.1:8080
+  --listen 127.0.0.1:8080
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-```
-
-The service needs permission to write `/etc/dnsmasq.conf` and run:
-
-```text
-/usr/sbin/dnsmasq --test --conf-file=...
-systemctl reload dnsmasq
-systemctl restart dnsmasq
 ```

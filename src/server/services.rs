@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use tokio::fs;
+use tracing::{error, info, warn};
 
 use crate::api_types::{
     AuthResponse, AuthStatusResponse, BackupInfo, CommandReport, ConfigResponse, RawConfigResponse,
@@ -67,6 +68,7 @@ pub async fn save_records(
 ) -> AppResult<SaveResponse> {
     let issues = validate_records(&records);
     if has_errors(&issues) {
+        warn!("structured config save rejected by validation");
         return Err(AppError::InvalidConfig(format!(
             "validation failed: {}",
             issues
@@ -82,7 +84,7 @@ pub async fn save_records(
     let parsed = parse_config(&content)?;
     let next = replace_managed_records(&parsed, records)?;
     let rendered = render_config(&next);
-    let result = persist_config(state, &rendered, apply).await?;
+    let result = persist_config(state, &rendered, apply, "structured").await?;
 
     Ok(SaveResponse {
         warnings: issues
@@ -115,12 +117,13 @@ pub async fn save_raw_config(
     let records = collect_records_from_config(&parsed);
     let issues = validate_records(&records);
     if has_errors(&issues) {
+        warn!("raw config save rejected by managed record validation");
         return Err(AppError::InvalidConfig(String::from(
             "raw config contains invalid managed records",
         )));
     }
 
-    let result = persist_config(state, &content, apply).await?;
+    let result = persist_config(state, &content, apply, "raw").await?;
     Ok(SaveResponse {
         warnings: issues
             .into_iter()
@@ -138,11 +141,19 @@ pub async fn test_config(state: &AppState, content: Option<String>) -> AppResult
     let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, &content).await?;
     let report = state.inner.dnsmasq.test_config(&temp_path).await;
     let _ = fs::remove_file(&temp_path).await;
+    if let Err(error) = &report {
+        warn!(%error, "dnsmasq config test failed");
+    }
     report
 }
 
 pub async fn reload_dnsmasq(state: &AppState) -> AppResult<CommandReport> {
-    state.inner.systemd.restart().await
+    let report = state.inner.systemd.restart().await;
+    match &report {
+        Ok(_) => info!("dnsmasq service restarted"),
+        Err(error) => error!(%error, "dnsmasq service restart failed"),
+    }
+    report
 }
 
 pub async fn status(state: &AppState) -> ServiceStatus {
@@ -154,16 +165,28 @@ pub async fn list_backups(state: &AppState) -> AppResult<Vec<BackupInfo>> {
 }
 
 pub async fn delete_backup(state: &AppState, id: String) -> AppResult<()> {
-    backup::delete_backup(&state.inner.paths.backup_dir, &id).await
+    let result = backup::delete_backup(&state.inner.paths.backup_dir, &id).await;
+    match &result {
+        Ok(()) => info!(backup_id = %id, "backup deleted"),
+        Err(error) => warn!(backup_id = %id, %error, "backup delete failed"),
+    }
+    result
 }
 
 pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBackupResponse> {
+    info!(backup_id = %id, "backup restore requested");
     let path = backup::checked_backup_path(&state.inner.paths.backup_dir, &id)?;
     let content = fs::read_to_string(&path).await?;
     let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, &content).await?;
     let test = state.inner.dnsmasq.test_config(&temp_path).await;
     let _ = fs::remove_file(&temp_path).await;
-    let test = test?;
+    let test = match test {
+        Ok(report) => report,
+        Err(error) => {
+            warn!(backup_id = %id, %error, "backup restore rejected by dnsmasq test");
+            return Err(error);
+        }
+    };
 
     let created_backup = backup::create_backup(
         &state.inner.paths.config_file,
@@ -171,7 +194,18 @@ pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBa
     )
     .await?;
     atomic_write::replace(&state.inner.paths.config_file, &content).await?;
-    let reload = Some(state.inner.systemd.restart().await?);
+    let reload = match state.inner.systemd.restart().await {
+        Ok(report) => Some(report),
+        Err(error) => {
+            error!(backup_id = %id, %error, "backup restored but dnsmasq restart failed");
+            return Err(error);
+        }
+    };
+    info!(
+        backup_id = %id,
+        rollback_backup = %created_backup.path,
+        "backup restored and dnsmasq restarted"
+    );
 
     Ok(RestoreBackupResponse {
         created_backup,
@@ -180,11 +214,22 @@ pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBa
     })
 }
 
-async fn persist_config(state: &AppState, content: &str, apply: bool) -> AppResult<SaveResponse> {
+async fn persist_config(
+    state: &AppState,
+    content: &str,
+    apply: bool,
+    source: &'static str,
+) -> AppResult<SaveResponse> {
     let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, content).await?;
     let test = state.inner.dnsmasq.test_config(&temp_path).await;
     let _ = fs::remove_file(&temp_path).await;
-    let test = test?;
+    let test = match test {
+        Ok(report) => report,
+        Err(error) => {
+            warn!(%error, "config replacement rejected by dnsmasq test");
+            return Err(error);
+        }
+    };
 
     let backup = backup::create_backup(
         &state.inner.paths.config_file,
@@ -194,10 +239,23 @@ async fn persist_config(state: &AppState, content: &str, apply: bool) -> AppResu
     atomic_write::replace(&state.inner.paths.config_file, content).await?;
 
     let reload = if apply {
-        Some(state.inner.systemd.restart().await?)
+        match state.inner.systemd.restart().await {
+            Ok(report) => Some(report),
+            Err(error) => {
+                error!(%error, "config saved but dnsmasq restart failed");
+                return Err(error);
+            }
+        }
     } else {
         None
     };
+
+    info!(
+        source,
+        apply,
+        backup = %backup.path,
+        "config saved"
+    );
 
     Ok(SaveResponse {
         applied: apply,

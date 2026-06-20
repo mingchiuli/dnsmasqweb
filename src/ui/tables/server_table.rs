@@ -11,7 +11,7 @@ use crate::ui::tables::{EditableRow, find_row, remove_row, upsert_row};
 use crate::ui::text::localized;
 
 #[component]
-pub fn ServerTable(
+pub fn server_table(
     records: RwSignal<Vec<EditableRow<ServerRecord>>>,
     locale: Signal<Locale>,
 ) -> impl IntoView {

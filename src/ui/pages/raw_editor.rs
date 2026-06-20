@@ -4,7 +4,7 @@ use thaw::{Button, ButtonType, Textarea, TextareaResize};
 use crate::i18n::{Locale, Msg, t};
 
 #[component]
-pub fn RawEditorPanel(
+pub fn raw_editor_panel(
     content: RwSignal<String>,
     #[prop(into)] on_test: Callback<()>,
     locale: Signal<Locale>,

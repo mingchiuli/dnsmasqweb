@@ -20,7 +20,7 @@ pub(super) fn is_unauthorized(error: &str) -> bool {
 }
 
 #[component]
-pub(super) fn AuthGate(
+pub(super) fn auth_gate(
     mode: Signal<AuthMode>,
     password: RwSignal<String>,
     busy: Signal<bool>,
