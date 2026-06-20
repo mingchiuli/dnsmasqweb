@@ -33,7 +33,7 @@ pub(super) fn auth_gate(
     view! {
         <div class="auth-shell">
             <div class="auth-head">
-                <h1>"dnsmasqweb"</h1>
+                <h1>"dnsmasq-web"</h1>
                 <Button button_type=ButtonType::Button on_click=move |_| on_toggle_locale.run(())>
                     {move || t(locale.get(), Msg::LocaleSwitch)}
                 </Button>
