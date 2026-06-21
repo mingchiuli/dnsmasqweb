@@ -47,6 +47,8 @@ jobs:
         run: cargo test --tests --no-default-features --features ssr
 
       - name: Build binary
+        env:
+          LEPTOS_OUTPUT_NAME: dnsmasqweb
         run: cargo build --release --bin dnsmasqweb --no-default-features --features ssr --target ${{ matrix.target }}
 
       - name: Package
