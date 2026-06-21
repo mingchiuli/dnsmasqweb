@@ -14,22 +14,21 @@ Unknown dnsmasq directives, comments, and blank lines must be preserved. Do not 
 ## Architecture
 
 - Backend binary: Axum + Tokio, built with Cargo feature `ssr`.
-- Frontend: Leptos CSR, built to WASM with Trunk using Cargo feature `csr`.
+- Frontend: Leptos hydrate WASM, built with cargo-leptos using Cargo feature `hydrate`.
 - Frontend/backend calls: Leptos server functions in `src/server_fns.rs`.
 - Server function implementation calls shared backend services in `src/server/services.rs`.
-- The final backend binary embeds the generated `dist/` frontend assets.
+- cargo-leptos writes frontend assets to `target/site`; the backend serves that site directory at runtime.
 
 Build order matters:
 
 ```bash
-env -u NO_COLOR trunk build --release --no-default-features --features csr
-cargo build --release --bin dnsmasqweb --features ssr
+cargo leptos build --release
 ```
 
 ## Cargo Features
 
 - `ssr`: server-side binary, Axum, Tokio, dnsmasq/systemd operations, Leptos server functions.
-- `csr`: browser-side WASM frontend, Leptos UI, browser storage APIs.
+- `hydrate`: browser-side WASM frontend, Leptos UI, browser storage APIs.
 - Default feature is `ssr`.
 
 Do not use the old `server` feature name. Leptos server function macros expect the server-side feature to be named `ssr`.
@@ -47,14 +46,14 @@ Use Leptos server functions for frontend/backend calls. Do not add a parallel ha
 
 - Server function declarations live in `src/server_fns.rs`.
 - Shared backend logic lives in `src/server/services.rs`.
-- Axum routes dynamically mount registered server function paths in `src/server/routes.rs`.
+- Axum routes mount Leptos SSR routes and registered server function paths in `src/server/routes.rs`.
 
 Authentication currently uses an in-memory bcrypt password hash and in-memory session tokens. Browser session tokens are stored in a `HttpOnly` `SameSite=Lax` cookie. Axum middleware in `src/server/routes.rs` protects server function routes by default; only auth status, locale, setup, login, and logout are public.
 
 ## Frontend Notes
 
-- SCSS entry point is `style/main.scss`; split styles live under `style/base`, `style/layout`, `style/components`, and `style/pages`. Trunk compiles this entry through `data-trunk rel="scss"` in `index.html`.
-- `index.html` is the Trunk entry and WASM bootstrap shell.
+- SCSS entry point is `style/main.scss`; split styles live under `style/base`, `style/layout`, `style/components`, and `style/pages`. cargo-leptos compiles this entry from `[package.metadata.leptos]`.
+- The SSR HTML shell lives in `src/app.rs`.
 - i18n is intentionally lightweight and implemented in `src/i18n.rs`; avoid introducing a full i18n framework unless requested.
 - Dynamic editable record lists should use keyed Leptos `<For/>` with stable UI-only IDs.
 
@@ -64,16 +63,13 @@ Run these after meaningful changes:
 
 ```bash
 cargo fmt --all --check
-cargo check --bin dnsmasqweb --features ssr
-cargo check --bin dnsmasqweb-frontend --features csr --target wasm32-unknown-unknown --no-default-features
-cargo test --tests --features ssr
-cargo clippy --all-targets --features ssr -- -D warnings
-cargo clippy --bin dnsmasqweb-frontend --features csr --target wasm32-unknown-unknown --no-default-features -- -D warnings
-env -u NO_COLOR trunk build --release --no-default-features --features csr
-cargo build --release --bin dnsmasqweb --features ssr
+cargo check --bin dnsmasqweb --no-default-features --features ssr
+cargo check --lib --target wasm32-unknown-unknown --no-default-features --features hydrate
+cargo test --tests --no-default-features --features ssr
+cargo clippy --all-targets --no-default-features --features ssr -- -D warnings
+cargo clippy --lib --target wasm32-unknown-unknown --no-default-features --features hydrate -- -D warnings
+cargo leptos build --release
 ```
-
-Use `env -u NO_COLOR` with Trunk because some environments set `NO_COLOR=1`, which can confuse Trunk's CLI parsing.
 
 ## Release Workflow
 

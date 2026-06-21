@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use axum::extract::FromRef;
 use chrono::{DateTime, Utc};
+use leptos::config::LeptosOptions;
 use tokio::sync::RwLock;
 
 use crate::dnsmasq::command::DnsmasqCommand;
@@ -15,6 +17,7 @@ pub struct AppState {
 }
 
 pub struct AppStateInner {
+    pub leptos_options: LeptosOptions,
     pub paths: StoragePaths,
     pub dnsmasq: DnsmasqCommand,
     pub systemd: Systemd,
@@ -41,6 +44,7 @@ pub struct CreatedSession {
 
 impl AppState {
     pub fn new(
+        leptos_options: LeptosOptions,
         config_file: PathBuf,
         backup_dir: PathBuf,
         dnsmasq_bin: String,
@@ -48,6 +52,7 @@ impl AppState {
     ) -> Self {
         Self {
             inner: Arc::new(AppStateInner {
+                leptos_options,
                 paths: StoragePaths::new(config_file, backup_dir),
                 dnsmasq: DnsmasqCommand::new(dnsmasq_bin),
                 systemd: Systemd::new(service_name),
@@ -82,5 +87,11 @@ impl AppState {
         let mut auth = self.inner.auth.write().await;
         let now = Utc::now();
         auth.sessions.retain(|session| session.expires_at > now);
+    }
+}
+
+impl FromRef<AppState> for LeptosOptions {
+    fn from_ref(state: &AppState) -> Self {
+        state.inner.leptos_options.clone()
     }
 }

@@ -3,6 +3,7 @@ use thaw::{
     Button, ButtonAppearance, ButtonType, Table, TableBody, TableCell, TableHeader,
     TableHeaderCell, TableRow,
 };
+#[cfg(feature = "hydrate")]
 use wasm_bindgen::JsValue;
 
 use crate::api_types::BackupInfo;
@@ -87,6 +88,20 @@ pub fn backups_panel(
 }
 
 fn format_local_time(value: &str, locale: Locale) -> String {
+    #[cfg(feature = "hydrate")]
+    {
+        format_browser_local_time(value, locale)
+    }
+
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _ = locale;
+        value.into()
+    }
+}
+
+#[cfg(feature = "hydrate")]
+fn format_browser_local_time(value: &str, locale: Locale) -> String {
     let date = js_sys::Date::new(&JsValue::from_str(value));
     if date.get_time().is_nan() {
         return value.into();

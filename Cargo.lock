@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "dnsmasqweb"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -612,8 +612,8 @@ dependencies = [
  "js-sys",
  "leptos",
  "leptos_axum",
+ "leptos_router",
  "mime_guess",
- "rust-embed",
  "serde",
  "thaw",
  "thiserror 2.0.18",
@@ -1875,6 +1875,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "pure-rust-locales"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "869675ad2d7541aea90c6d88c81f46a7f4ea9af8cd0395d38f11a95126998a0d"
+
+[[package]]
 name = "quote"
 version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2096,40 +2102,6 @@ dependencies = [
  "syn",
  "syn_derive",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "rust-embed"
-version = "8.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04113cb9355a377d83f06ef1f0a45b8ab8cd7d8b1288160717d66df5c7988d27"
-dependencies = [
- "rust-embed-impl",
- "rust-embed-utils",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-impl"
-version = "8.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da0902e4c7c8e997159ab384e6d0fc91c221375f6894346ae107f47dd0f3ccaa"
-dependencies = [
- "proc-macro2",
- "quote",
- "rust-embed-utils",
- "syn",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-utils"
-version = "8.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bcdef0be6fe7f6fa333b1073c949729274b05f123a0ad7efcb8efd878e5c3b1"
-dependencies = [
- "sha2",
- "walkdir",
 ]
 
 [[package]]
@@ -2523,8 +2495,7 @@ dependencies = [
 [[package]]
 name = "thaw"
 version = "0.5.0-beta"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4513e35e505ad32690c010fa7f3b15b2e4c53616a34c7931347a0dfd59961c0b"
+source = "git+https://github.com/thaw-ui/thaw?branch=main#0726a3d6788f07e929996e77399d83655ffaacde"
 dependencies = [
  "cfg-if",
  "chrono",
@@ -2535,6 +2506,7 @@ dependencies = [
  "leptos_transition_group",
  "num-traits",
  "palette",
+ "pure-rust-locales",
  "send_wrapper",
  "slotmap",
  "thaw_components",
@@ -2548,8 +2520,7 @@ dependencies = [
 [[package]]
 name = "thaw_components"
 version = "0.4.0-beta"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d001f2afe510b21094b839be67f39181abc3ecd4f1d4164ffa71785ab74542c"
+source = "git+https://github.com/thaw-ui/thaw?branch=main#0726a3d6788f07e929996e77399d83655ffaacde"
 dependencies = [
  "cfg-if",
  "leptos",
@@ -2562,8 +2533,7 @@ dependencies = [
 [[package]]
 name = "thaw_macro"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5af50a5123e480e7ee8961e6456f63530816875d0a19cb73060b8e61dd2a95fb"
+source = "git+https://github.com/thaw-ui/thaw?branch=main#0726a3d6788f07e929996e77399d83655ffaacde"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2573,12 +2543,12 @@ dependencies = [
 [[package]]
 name = "thaw_utils"
 version = "0.2.0-beta"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc1c717c2abc284e011251e2171dc3067874c160ba846b41ade04e882f0b4eef"
+source = "git+https://github.com/thaw-ui/thaw?branch=main#0726a3d6788f07e929996e77399d83655ffaacde"
 dependencies = [
  "cfg-if",
  "chrono",
  "leptos",
+ "leptos_meta",
  "reactive_stores 0.2.5",
  "send_wrapper",
  "wasm-bindgen",

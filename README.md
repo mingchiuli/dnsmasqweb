@@ -26,20 +26,23 @@ file and permission to test and reload the dnsmasq service.
 ## Build
 
 ```bash
-cargo install trunk --locked
+cargo install cargo-leptos --locked
 rustup toolchain install 1.96.0 --component clippy,rustfmt --target wasm32-unknown-unknown
-env -u NO_COLOR trunk build --release --no-default-features --features csr
-cargo build --release --bin dnsmasqweb --features ssr
+cargo leptos build --release
 ```
 
-Build the frontend first. The server binary embeds the generated `dist/`
-frontend assets.
+`cargo-leptos` builds the hydrated WASM frontend into `target/site` and the SSR
+server binary.
 
 The release binary is:
 
 ```text
 target/release/dnsmasqweb
 ```
+
+At runtime, the server serves frontend assets from `site/` next to the binary
+when present, or from `target/site` during local builds. Set `LEPTOS_SITE_ROOT`
+to override the asset directory.
 
 ## Run
 

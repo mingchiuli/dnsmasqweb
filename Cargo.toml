@@ -1,6 +1,6 @@
 [package]
 name = "dnsmasqweb"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.96"
 license = "Apache-2.0"
@@ -15,23 +15,27 @@ ssr = [
     "dep:clap",
     "dep:leptos",
     "dep:leptos_axum",
+    "dep:leptos_router",
     "dep:mime_guess",
-    "dep:rust-embed",
+    "dep:thaw",
     "dep:tokio",
     "dep:tower-http",
     "dep:tracing-subscriber",
     "dep:uuid",
     "leptos/ssr",
+    "leptos_router/ssr",
+    "thaw/ssr",
 ]
-csr = [
+hydrate = [
     "dep:console_error_panic_hook",
     "dep:js-sys",
     "dep:leptos",
+    "dep:leptos_router",
     "dep:thaw",
     "dep:wasm-bindgen",
     "dep:web-sys",
-    "leptos/csr",
-    "thaw/csr",
+    "leptos/hydrate",
+    "thaw/hydrate",
 ]
 
 [dependencies]
@@ -42,7 +46,8 @@ tracing = "0.1"
 uuid = { version = "1", features = ["v4"], optional = true }
 
 leptos = { version = "0.8.11", default-features = false, optional = true }
-thaw = { version = "0.5.0-beta", default-features = false, optional = true }
+leptos_router = { version = "0.8.6", default-features = false, optional = true }
+thaw = { git = "https://github.com/thaw-ui/thaw", branch = "main", default-features = false, optional = true }
 
 anyhow = { version = "1", optional = true }
 axum = { version = "0.8.9", optional = true }
@@ -52,7 +57,6 @@ console_error_panic_hook = { version = "0.1", optional = true }
 js-sys = { version = "0.3", optional = true }
 leptos_axum = { version = "0.8.6", optional = true }
 mime_guess = { version = "2", optional = true }
-rust-embed = { version = "8", optional = true }
 tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "sync", "time"], optional = true }
 tower-http = { version = "0.7", features = ["trace"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
@@ -67,10 +71,21 @@ name = "dnsmasqweb"
 path = "src/main.rs"
 required-features = ["ssr"]
 
-[[bin]]
-name = "dnsmasqweb-frontend"
-path = "src/frontend.rs"
-required-features = ["csr"]
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.leptos]
+bin-target = "dnsmasqweb"
+output-name = "dnsmasqweb"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+style-file = "style/main.scss"
+assets-dir = "assets"
+lib-features = ["hydrate"]
+lib-default-features = false
+bin-features = ["ssr"]
+bin-default-features = false
+site-addr = "127.0.0.1:8080"
 
 [profile.release]
 codegen-units = 1

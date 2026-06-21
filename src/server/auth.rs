@@ -100,6 +100,9 @@ mod tests {
 
     fn state() -> AppState {
         AppState::new(
+            leptos::config::LeptosOptions::builder()
+                .output_name("dnsmasqweb")
+                .build(),
             PathBuf::from("/tmp/dnsmasq.conf"),
             PathBuf::from("/tmp/dnsmasqweb-backups"),
             String::from("dnsmasq"),

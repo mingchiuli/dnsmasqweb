@@ -8,9 +8,11 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post, put};
 use leptos::context::provide_context;
 use leptos::server_fn::ServerFn;
+use leptos_axum::{LeptosRoutes, generate_route_list, render_route_with_context};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
+use crate::app::{App, Shell, ShellProps};
 use crate::server::auth::SESSION_COOKIE;
 use crate::server::handlers;
 use crate::server::state::AppState;
@@ -25,6 +27,9 @@ const PUBLIC_SERVER_FN_PATHS: &[&str] = &[
 ];
 
 pub fn router(state: AppState) -> Router {
+    let leptos_options = state.inner.leptos_options.clone();
+    let routes = generate_route_list(App);
+
     let mut server_fn_router = Router::new();
     for (path, method) in leptos::server_fn::axum::server_fn_paths() {
         server_fn_router = match method {
@@ -37,12 +42,26 @@ pub fn router(state: AppState) -> Router {
         };
     }
 
+    let route_handler = render_route_with_context::<AppState, _>(
+        routes.clone(),
+        {
+            let state = state.clone();
+            move || provide_context::<AppState>(state.clone())
+        },
+        move || {
+            Shell(ShellProps {
+                options: leptos_options.clone(),
+            })
+        },
+    );
+
     Router::new()
+        .leptos_routes_with_handler(routes, route_handler)
         .merge(
             server_fn_router
                 .route_layer(middleware::from_fn_with_state(state.clone(), require_auth)),
         )
-        .fallback(handlers::static_assets)
+        .fallback(handlers::site_assets)
         .layer(
             TraceLayer::new_for_http()
                 .on_request(DefaultOnRequest::new().level(Level::DEBUG))
@@ -52,7 +71,7 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn server_fn_handler(State(state): State<AppState>, req: Request<Body>) -> Response {
+async fn server_fn_handler(State(state): State<AppState>, req: Request) -> Response {
     leptos_axum::handle_server_fns_with_context(
         move || provide_context::<AppState>(state.clone()),
         req,

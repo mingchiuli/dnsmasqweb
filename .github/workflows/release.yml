@@ -35,19 +35,19 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install Trunk
+      - name: Install cargo-leptos
         uses: taiki-e/install-action@v2
         with:
-          tool: trunk
+          tool: cargo-leptos
 
       - name: Build frontend assets
-        run: env -u NO_COLOR trunk build --release --no-default-features --features csr
+        run: cargo leptos build --release --frontend-only
 
       - name: Test
-        run: cargo test --tests --features ssr
+        run: cargo test --tests --no-default-features --features ssr
 
       - name: Build binary
-        run: cargo build --release --bin dnsmasqweb --features ssr --target ${{ matrix.target }}
+        run: cargo build --release --bin dnsmasqweb --no-default-features --features ssr --target ${{ matrix.target }}
 
       - name: Package
         shell: bash
@@ -56,6 +56,7 @@ jobs:
           name="dnsmasqweb-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir -p "pkg/$name"
           cp "target/${{ matrix.target }}/release/dnsmasqweb" "pkg/$name/"
+          cp -R target/site "pkg/$name/site"
           cp README.md LICENSE "pkg/$name/"
           tar -C pkg -czf "$name.tar.gz" "$name"
           echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
