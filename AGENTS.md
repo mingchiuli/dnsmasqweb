@@ -52,7 +52,7 @@ Authentication currently uses an in-memory bcrypt password hash and in-memory se
 
 ## Frontend Notes
 
-- SCSS entry point is `style/main.scss`; split styles live under `style/base`, `style/layout`, `style/components`, and `style/pages`. cargo-leptos compiles this entry from `[package.metadata.leptos]`.
+- CSS entry point is `style/main.css`; cargo-leptos reads this entry from `[package.metadata.leptos]`.
 - The SSR HTML shell lives in `src/app.rs`.
 - i18n is intentionally lightweight and implemented in `src/i18n.rs`; avoid introducing a full i18n framework unless requested.
 - Dynamic editable record lists should use keyed Leptos `<For/>` with stable UI-only IDs.
