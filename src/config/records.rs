@@ -44,11 +44,14 @@ pub fn replace_managed_records(
 
     let mut lines = Vec::new();
     let mut inserted = false;
+    let mut records = Some(records);
 
     for line in &config.lines {
         if matches!(line, ConfigLine::Managed(_)) {
             if !inserted {
-                lines.extend(render_records_block(&records));
+                if let Some(records) = records.take() {
+                    lines.extend(render_records_block(records));
+                }
                 inserted = true;
             }
             continue;
@@ -60,7 +63,9 @@ pub fn replace_managed_records(
         if !lines.is_empty() {
             lines.push(ConfigLine::Blank(String::new()));
         }
-        lines.extend(render_records_block(&records));
+        if let Some(records) = records {
+            lines.extend(render_records_block(records));
+        }
     }
 
     Ok(ParsedConfig {
@@ -102,12 +107,15 @@ fn replace_existing_block(config: &ParsedConfig, records: DnsRecords) -> AppResu
     let mut lines = Vec::new();
     let mut in_block = false;
     let mut replaced = false;
+    let mut records = Some(records);
 
     for line in &config.lines {
         match line {
             ConfigLine::Comment(value) if value.trim() == MANAGED_BEGIN => {
                 if !replaced {
-                    lines.extend(render_records_block(&records));
+                    if let Some(records) = records.take() {
+                        lines.extend(render_records_block(records));
+                    }
                     replaced = true;
                 }
                 in_block = true;
@@ -126,8 +134,8 @@ fn replace_existing_block(config: &ParsedConfig, records: DnsRecords) -> AppResu
         )));
     }
 
-    if !replaced {
-        lines.extend(render_records_block(&records));
+    if !replaced && let Some(records) = records {
+        lines.extend(render_records_block(records));
     }
 
     Ok(ParsedConfig {

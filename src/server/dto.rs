@@ -12,6 +12,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::InvalidConfig(_) | AppError::ParseLine { .. } => StatusCode::BAD_REQUEST,
             AppError::CommandFailed { .. } => StatusCode::BAD_REQUEST,
+            AppError::ConfigApplyFailed { .. } => StatusCode::BAD_REQUEST,
             AppError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Auth(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };

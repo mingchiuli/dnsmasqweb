@@ -15,23 +15,21 @@ pub fn render_config(config: &ParsedConfig) -> String {
     output
 }
 
-pub fn render_records_block(records: &DnsRecords) -> Vec<ConfigLine> {
+pub fn render_records_block(records: DnsRecords) -> Vec<ConfigLine> {
     let mut lines = Vec::new();
     lines.push(ConfigLine::Comment(MANAGED_BEGIN.into()));
 
-    for record in &records.address {
-        lines.push(ConfigLine::Managed(ManagedRecord::Address(record.clone())));
+    for record in records.address {
+        lines.push(ConfigLine::Managed(ManagedRecord::Address(record)));
     }
-    for record in &records.host_record {
-        lines.push(ConfigLine::Managed(ManagedRecord::HostRecord(
-            record.clone(),
-        )));
+    for record in records.host_record {
+        lines.push(ConfigLine::Managed(ManagedRecord::HostRecord(record)));
     }
-    for record in &records.cname {
-        lines.push(ConfigLine::Managed(ManagedRecord::Cname(record.clone())));
+    for record in records.cname {
+        lines.push(ConfigLine::Managed(ManagedRecord::Cname(record)));
     }
-    for record in &records.server {
-        lines.push(ConfigLine::Managed(ManagedRecord::Server(record.clone())));
+    for record in records.server {
+        lines.push(ConfigLine::Managed(ManagedRecord::Server(record)));
     }
 
     lines.push(ConfigLine::Comment(MANAGED_END.into()));

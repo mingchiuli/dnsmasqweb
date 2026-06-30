@@ -22,12 +22,45 @@ pub enum AppError {
     },
 
     #[cfg(feature = "ssr")]
+    #[error("dnsmasq restart failed after config replacement: {reload_error}; rollback {rollback}")]
+    ConfigApplyFailed {
+        reload_error: Box<AppError>,
+        rollback: RollbackStatus,
+    },
+
+    #[cfg(feature = "ssr")]
     #[error("unauthorized")]
     Unauthorized,
 
     #[cfg(feature = "ssr")]
     #[error("authentication error: {0}")]
     Auth(String),
+}
+
+#[cfg(feature = "ssr")]
+#[derive(Debug)]
+pub enum RollbackStatus {
+    Restored,
+    RestoredRestartFailed { error: String },
+    Failed { error: String },
+}
+
+#[cfg(feature = "ssr")]
+impl std::fmt::Display for RollbackStatus {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Restored => write!(formatter, "restored previous config and restarted dnsmasq"),
+            Self::RestoredRestartFailed { error } => {
+                write!(
+                    formatter,
+                    "restored previous config but dnsmasq restart failed: {error}"
+                )
+            }
+            Self::Failed { error } => {
+                write!(formatter, "failed to restore previous config: {error}")
+            }
+        }
+    }
 }
 
 pub type AppResult<T> = Result<T, AppError>;

@@ -14,8 +14,9 @@ use crate::config::validate::{has_errors, validate_records};
 use crate::error::{AppError, AppResult};
 use crate::i18n::Locale;
 use crate::server::auth;
+use crate::server::config_apply::{self, ConfigApplyRequest, ConfigApplyResult};
 use crate::server::state::{AppState, CreatedSession};
-use crate::storage::{atomic_write, backup};
+use crate::storage::backup;
 
 pub async fn auth_status(
     state: &AppState,
@@ -92,6 +93,7 @@ pub async fn save_records(
         )));
     }
 
+    let _operation = state.inner.config_operations.lock().await;
     let content = fs::read_to_string(&state.inner.paths.config_file).await?;
     let parsed = parse_config(&content)?;
     let next = replace_managed_records(&parsed, records)?;
@@ -135,6 +137,7 @@ pub async fn save_raw_config(
         )));
     }
 
+    let _operation = state.inner.config_operations.lock().await;
     let result = persist_config(state, &content, apply, "raw").await?;
     Ok(SaveResponse {
         warnings: issues
@@ -150,9 +153,12 @@ pub async fn test_config(state: &AppState, content: Option<String>) -> AppResult
         Some(content) => content,
         None => fs::read_to_string(&state.inner.paths.config_file).await?,
     };
-    let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, &content).await?;
-    let report = state.inner.dnsmasq.test_config(&temp_path).await;
-    let _ = fs::remove_file(&temp_path).await;
+    let report = config_apply::test_content(
+        &state.inner.paths.config_file,
+        &content,
+        &state.inner.dnsmasq,
+    )
+    .await;
     if let Err(error) = &report {
         warn!(%error, "dnsmasq config test failed");
     }
@@ -160,6 +166,7 @@ pub async fn test_config(state: &AppState, content: Option<String>) -> AppResult
 }
 
 pub async fn reload_dnsmasq(state: &AppState) -> AppResult<CommandReport> {
+    let _operation = state.inner.config_operations.lock().await;
     let report = state.inner.systemd.restart().await;
     match &report {
         Ok(_) => info!("dnsmasq service restarted"),
@@ -177,6 +184,7 @@ pub async fn list_backups(state: &AppState) -> AppResult<Vec<BackupInfo>> {
 }
 
 pub async fn delete_backup(state: &AppState, id: String) -> AppResult<()> {
+    let _operation = state.inner.config_operations.lock().await;
     let result = backup::delete_backup(&state.inner.paths.backup_dir, &id).await;
     match &result {
         Ok(()) => info!(backup_id = %id, "backup deleted"),
@@ -188,41 +196,20 @@ pub async fn delete_backup(state: &AppState, id: String) -> AppResult<()> {
 pub async fn restore_backup(state: &AppState, id: String) -> AppResult<RestoreBackupResponse> {
     info!(backup_id = %id, "backup restore requested");
     let path = backup::checked_backup_path(&state.inner.paths.backup_dir, &id)?;
-    let content = fs::read_to_string(&path).await?;
-    let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, &content).await?;
-    let test = state.inner.dnsmasq.test_config(&temp_path).await;
-    let _ = fs::remove_file(&temp_path).await;
-    let test = match test {
-        Ok(report) => report,
-        Err(error) => {
-            warn!(backup_id = %id, %error, "backup restore rejected by dnsmasq test");
-            return Err(error);
-        }
-    };
 
-    let created_backup = backup::create_backup(
-        &state.inner.paths.config_file,
-        &state.inner.paths.backup_dir,
-    )
-    .await?;
-    atomic_write::replace(&state.inner.paths.config_file, &content).await?;
-    let reload = match state.inner.systemd.restart().await {
-        Ok(report) => Some(report),
-        Err(error) => {
-            error!(backup_id = %id, %error, "backup restored but dnsmasq restart failed");
-            return Err(error);
-        }
-    };
+    let _operation = state.inner.config_operations.lock().await;
+    let content = fs::read_to_string(&path).await?;
+    let result = apply_config_transaction(state, &content, true, "restore").await?;
     info!(
         backup_id = %id,
-        rollback_backup = %created_backup.path,
+        rollback_backup = %result.backup.path,
         "backup restored and dnsmasq restarted"
     );
 
     Ok(RestoreBackupResponse {
-        created_backup,
-        test,
-        reload,
+        created_backup: result.backup,
+        test: result.test,
+        reload: result.reload,
     })
 }
 
@@ -232,48 +219,40 @@ async fn persist_config(
     apply: bool,
     source: &'static str,
 ) -> AppResult<SaveResponse> {
-    let temp_path = atomic_write::write_temp_near(&state.inner.paths.config_file, content).await?;
-    let test = state.inner.dnsmasq.test_config(&temp_path).await;
-    let _ = fs::remove_file(&temp_path).await;
-    let test = match test {
-        Ok(report) => report,
-        Err(error) => {
-            warn!(%error, "config replacement rejected by dnsmasq test");
-            return Err(error);
-        }
-    };
-
-    let backup = backup::create_backup(
-        &state.inner.paths.config_file,
-        &state.inner.paths.backup_dir,
-    )
-    .await?;
-    atomic_write::replace(&state.inner.paths.config_file, content).await?;
-
-    let reload = if apply {
-        match state.inner.systemd.restart().await {
-            Ok(report) => Some(report),
-            Err(error) => {
-                error!(%error, "config saved but dnsmasq restart failed");
-                return Err(error);
-            }
-        }
-    } else {
-        None
-    };
-
-    info!(
-        source,
-        apply,
-        backup = %backup.path,
-        "config saved"
-    );
+    let result = apply_config_transaction(state, content, apply, source).await?;
 
     Ok(SaveResponse {
         applied: apply,
-        backup: Some(backup),
-        test,
-        reload,
+        backup: Some(result.backup),
+        test: result.test,
+        reload: result.reload,
         warnings: Vec::new(),
     })
+}
+
+async fn apply_config_transaction(
+    state: &AppState,
+    content: &str,
+    apply: bool,
+    source: &'static str,
+) -> AppResult<ConfigApplyResult> {
+    match config_apply::apply_config(
+        ConfigApplyRequest {
+            config_file: &state.inner.paths.config_file,
+            backup_dir: &state.inner.paths.backup_dir,
+            content,
+            apply,
+            source,
+        },
+        &state.inner.dnsmasq,
+        &state.inner.systemd,
+    )
+    .await
+    {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            warn!(source, %error, "config replacement failed");
+            Err(error)
+        }
+    }
 }

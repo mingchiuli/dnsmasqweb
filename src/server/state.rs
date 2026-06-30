@@ -4,7 +4,7 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 use chrono::{DateTime, Utc};
 use leptos::config::LeptosOptions;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::dnsmasq::command::DnsmasqCommand;
 use crate::dnsmasq::systemd::Systemd;
@@ -22,6 +22,7 @@ pub struct AppStateInner {
     pub dnsmasq: DnsmasqCommand,
     pub systemd: Systemd,
     pub auth: RwLock<AuthState>,
+    pub config_operations: Mutex<()>,
 }
 
 #[derive(Debug, Default)]
@@ -57,6 +58,7 @@ impl AppState {
                 dnsmasq: DnsmasqCommand::new(dnsmasq_bin),
                 systemd: Systemd::new(service_name),
                 auth: RwLock::new(AuthState::default()),
+                config_operations: Mutex::new(()),
             }),
         }
     }
